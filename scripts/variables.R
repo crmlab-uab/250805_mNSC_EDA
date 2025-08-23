@@ -14,22 +14,9 @@ nc <- BiocParallel::multicoreWorkers()
 blp <- colorRampPalette(rev(brewer.pal(9, "Blues")))(255)
 ryb <- colorRampPalette(rev(brewer.pal(n = 7, name = "RdYlBu")))(100)
 
-## genesets
-kinases <-
-  read.csv(
-    "./genesets/201006_composite_kinases.csv",
-    header = TRUE,
-    fileEncoding = "UTF-8-BOM"
-  )
-
-str(kinases)
-head(kinases)
-
-kinase_genes <- kinases$HGNC
-
 ## folders
 
-# output directory
+# output
 dir_output <- "./output/"
 dir.create(paste0(dir_output))
 

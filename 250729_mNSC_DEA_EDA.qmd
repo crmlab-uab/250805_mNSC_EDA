@@ -18,17 +18,31 @@ library("rmarkdown")
 
 # Imports
 
-Comprehensive sample sheet from nextflow round 1 (270725)
-
-Merge metadata and sample sheet
+Comprehensive sample sheet from nextflow round 2 (/data/project/MillerLab/projects/mNSC/250730_mNSC_nf-core)
 
 ## salmon gene counts
 
-Original file location - <sftp://cheaha.rc.uab.edu//data/project/MillerLab/projects/mNSC/250725_Tomo_mNSC/nf-core_rnaseq/star_salmon/salmon.merged.gene_counts.rds>
+Original file locations
+/data/project/MillerLab/projects/mNSC/250730_mNSC_nf-core/sf
+/data/project/MillerLab/genomes/GRCm39_vM37
 
-File copied into the *input* folder
+
+Files copied into the *input* folder
 
 ```{r}
+
+readRenviron("/data/250805_mNSC_EDA/.Renviron")
+
+sftp_con <- sftp_connect(
+  server = Sys.getenv("SFTP_HOST"),
+  folder = Sys.getenv("SFTP_DIR"),
+  username = Sys.getenv("SFTP_USER"),
+  password = Sys.getenv("SFTP_PASS"),
+  protocol = "sftp://",
+  port = Sys.getenv("SFTP_PORT"),
+  timeout = 30
+)
+
 # Specify the path to your RDS file
 
 file_path <- "/data/input/Data_250725/salmon.merged.gene_counts.rds"
