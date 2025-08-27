@@ -48,17 +48,17 @@ files_sf <- samples$files_sf
 all(file.exists(files_sf))
 ```
 
-# Variables
+# Inputs
 ```{r}
-#| label: "variables"
+#| label: "inputs"
 #| echo: true
-#| file: variables.R
+#| file: 01_inputs.R
 
 # Source the external R script
-source(file.path("./scripts/01_variables.R")) 
+source(file.path("./scripts/01_inputs.R")) 
 ```
 
-## Other variables
+## Project variables
 ```{r}
 head(samples)
 colnames(samples)
@@ -75,23 +75,13 @@ anno <- as.data.frame(samples[,c(var1, var2, var3)])
 colnames(anno)
 ```
 
-# genesets
+# dds
 ```{r}
-#| label: "genesets script"
-#| echo: true
-#| file: variables.R
-
-# Source the external R script
-source(file.path("./scripts/01a_genesets.R")) 
-```
-
-# txi R script
-```{r}
-#| label: "txi script"
+#| label: "dds script"
 #| echo: true
 
 # Source the external R script
-source(file.path("./scripts/02_txi.R")) 
+source(file.path("./scripts/02_dds.R")) 
 ```
 
 ## txi checks
