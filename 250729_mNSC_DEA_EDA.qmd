@@ -9,167 +9,62 @@ editor: source
 
 ```{r results: 'hide'}
 # hides the chunk output
-
 library("styler")
 library("tidyverse")
-library("DESeq2")
 library("rmarkdown")
 ```
 
-# Imports
+Imports
+Sample sheet from nextflow round 2 /data/project/MillerLab/projects/mNSC/250730_mNSC_nf-core
 
-Comprehensive sample sheet from nextflow round 2 (/data/project/MillerLab/projects/mNSC/250730_mNSC_nf-core)
-
-## salmon gene counts
-
+salmon gene counts
 Original file locations
 /data/project/MillerLab/projects/mNSC/250730_mNSC_nf-core/sf
+
+genome
 /data/project/MillerLab/genomes/GRCm39_vM37
-
-
-Files copied into the *input* folder
-
-```{r}
-
-readRenviron("/data/250805_mNSC_EDA/.Renviron")
-
-sftp_con <- sftp_connect(
-  server = Sys.getenv("SFTP_HOST"),
-  folder = Sys.getenv("SFTP_DIR"),
-  username = Sys.getenv("SFTP_USER"),
-  password = Sys.getenv("SFTP_PASS"),
-  protocol = "sftp://",
-  port = Sys.getenv("SFTP_PORT"),
-  timeout = 30
-)
-
-# Specify the path to your RDS file
-
-file_path <- "/data/input/Data_250725/salmon.merged.gene_counts.rds"
-
-# Load the RDS file into an R object
-gene_counts <- readRDS(file_path)
-
-# View the first few rows
-head(gene_counts)
-
-# Check the sample names
-head(colnames(gene_counts))
-head(colData(gene_counts))
-```
-
-## sample metadata
-
-File copied into the *input* folder on July 30, 2025
-
-```{r}
-# Specify the path to original metadata
-
-file_path <- "/data/input/220927_TomoSamples.csv"
-
-# import metadata csv
-metadata <- read.csv(file_path, header = TRUE, sep = ",")
-
-metadata$id <- metadata$ID
-
-metadata$id <- str_replace(metadata$id, "TK_", "")
-metadata$id <- str_pad(metadata$id, width = 3, side = c("left"), pad = "0")
-metadata$id <- paste0("TK", metadata$id)
-str(metadata)
-
-remove_rownames(metadata) %>% has_rownames()
-
-# replace sf column with new location in project folder (/data/sf)
-
-file_path <- "/data/sf/"
-metadata$sf <- paste0(file_path, metadata$id, ".sf")
-
-files_sf <- metadata$sf
-```
-
-## sample sheet
 
 Files copied into the *input* folder on July 30, 2025
 
+# Sample metadata
 ```{r}
-# Specify the path to original metadata
-
-file_path <- "/data/input/Data_250725/samples.csv"
+# path to original metadata
+samples_file <- "/data/input/samples.csv"
 
 # import metadata csv
-samples <- read.csv(file_path, header = TRUE, sep = ",")
-
+samples <- read.csv(samples_file, header = TRUE, sep = ",")
 remove_rownames(samples) %>% has_rownames()
 
+
+## samples to rownames
+rownames(samples) <- NULL
+samples <- column_to_rownames(samples, var = c("sample"))
 ```
 
-## merge sample sheets
-
+## sf files
 ```{r}
-
-samples <- left_join(samples, metadata, join_by("id"=="id"))
-
-samples <- column_to_rownames(samples, var = "id")
-
+samples$files_sf <- paste0("./sf/", rownames(samples), ".sf")
+files_sf <- samples$files_sf
+all(file.exists(files_sf))
 ```
 
-# dds data 
-
-Files copied into the input folder on July 30, 2025 from 250730 nf-core:rna-seq star-salmon deseq2 QC
-
-This rda file contains transcript-level data for two assays (counts and vst transformed counts)
-
+# Variables
 ```{r}
-# Specify the path to your dds rda file
-file_path <- "/data/input/Data_250730/deseq2.dds.Rdata" 
-# Load the RDS file into an R object 
-load(file_path, .GlobalEnv)
-
-dds_qc <- dds
-rm(dds)
-# View the first few rows 
-head(dds_qc) 
-# Check the sample names
-head(colnames(dds_qc))
-head(colData(dds_qc))
-# Check rownames
-head(rownames(dds_qc))
-```
-
-## se import
-
-```{r}
-# Specify the path to your dds rds file
-file_path <- "/data/input/Data_250730/null.merged.SummarizedExperiment.rds" 
-# Load the transcript-level RDS file into an R object 
-tx_se <- readRDS(file = file_path)
-# View the first few rows 
-head(tx_se) 
-# Check the sample names
-head(colnames(tx_se))
-head(colData(tx_se))
-```
-
-# variables
-## R script
-
-```{r}
-#| label: "variables script"
+#| label: "variables"
 #| echo: true
 #| file: variables.R
 
 # Source the external R script
-source(file.path("./scripts/variables.R")) 
+source(file.path("./scripts/01_variables.R")) 
 ```
 
-## expt variables
-
+## Other variables
 ```{r}
-head(rowData(tx_se))
-head(colData(tx_se))
+head(samples)
+colnames(samples)
 
-var1 <- "Driver"
-var2 <- "Host"
+var1 <- "Host"
+var2 <- "Driver"
 var3 <- "Type"
 var4 <- "Clone"
 var5 <- "Replicate"
@@ -177,18 +72,92 @@ var6 <- "LibraryBatch"
 var7 <- "SeqBatch"
 
 anno <- as.data.frame(samples[,c(var1, var2, var3)])
-
 colnames(anno)
 ```
 
-# dds
-## R script
-
+# genesets
 ```{r}
-#| label: "dds script"
+#| label: "genesets script"
 #| echo: true
-#| file: dds.R
+#| file: variables.R
 
 # Source the external R script
-source(file.path("./scripts/dds.R")) 
+source(file.path("./scripts/01a_genesets.R")) 
+```
+
+# txi R script
+```{r}
+#| label: "txi script"
+#| echo: true
+
+# Source the external R script
+source(file.path("./scripts/02_txi.R")) 
+```
+
+## txi checks
+```{r}
+counts_raw <- as.data.frame(txi$counts)
+look_for <- c("Egfr", "Pdgfra", "Pten", "Cdkn2a")
+counts_raw[rownames(counts_raw) %in% look_for, ]
+```
+# DDS
+```{r}
+#| label: "dds script"
+#| echo: false
+
+# Source the external R script
+source(file.path("./scripts/03_dds.R"))
+
+# Source the external R script
+source(file.path("./scripts/04_vsd.R"))
+```
+
+## DDS QC
+```{r}
+#| label: "RNAseqQC script"
+#| echo: true
+
+# Source the external R script
+source(file.path("./scripts/05_QC.R")) 
+```
+
+# Genes
+```{r}
+#| label: "gene filter"
+#| echo: true
+
+# Source the external R script
+source(file.path("./scripts/06_genes_mouse.R")) 
+```
+
+# DDS filter
+```{r}
+#| label: "dds filter script"
+#| echo: false
+
+# Source the external R script
+source(file.path("./scripts/07_dds_filt.R"))
+```
+
+# dds_filter QC
+```{r}
+#| label: "RNAseqQC filtered"
+#| echo: true
+
+# Source the external R script
+source(file.path("./scripts/08_QC_filt.R")) 
+```
+
+# dds_pcg QC
+```{r}
+#| label: "RNAseqQC pcg"
+#| echo: true
+
+# Source the external R script
+source(file.path("./scripts/09_QC_pcg.R")) 
+```
+
+# Session
+```{r}
+sessionInfo()
 ```
