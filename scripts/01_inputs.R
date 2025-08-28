@@ -16,10 +16,10 @@ blp <- colorRampPalette(rev(brewer.pal(9, "Blues")))(255)
 ryb <- colorRampPalette(rev(brewer.pal(n = 7, name = "RdYlBu")))(100)
 
 # folders
-dir_output <- "./output/"
+dir_output <- "output/"
 dir.create(paste0(dir_output))
 
-dir_graph <- "./graphs/"
+dir_graph <- "graphs/"
 dir.create(paste0(dir_graph))
 
 # seed
@@ -99,10 +99,9 @@ dim(pcg_df)
 # Include only chromosomes
 pcg_df <- subset(pcg_df, pcg_df$chromosome_name %in% c(1:19, "X", "Y"))
 dim(pcg_df)
+write.csv(pcg_df, file = paste0(dir_output, "genes_mouse_vM37_pcg.csv"))
 
 pcg <- as.vector(pcg_df$mgi_symbol)
-
-write.csv(pcg_df, file = paste0(dir_output, "genes_mouse_vM37_pcg.csv"))
 
 # import genesets
 ## kinases

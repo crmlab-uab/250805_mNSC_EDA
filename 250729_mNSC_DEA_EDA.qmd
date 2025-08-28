@@ -6,7 +6,6 @@ editor: source
 ---
 
 # Libraries
-
 ```{r results: 'hide'}
 # hides the chunk output
 library("styler")
@@ -28,6 +27,8 @@ Files copied into the *input* folder on July 30, 2025
 
 # Sample metadata
 ```{r}
+setwd("/data")
+getwd()
 # path to original metadata
 samples_file <- "/data/input/samples.csv"
 
@@ -35,8 +36,7 @@ samples_file <- "/data/input/samples.csv"
 samples <- read.csv(samples_file, header = TRUE, sep = ",")
 remove_rownames(samples) %>% has_rownames()
 
-
-## samples to rownames
+# samples column to rownames
 rownames(samples) <- NULL
 samples <- column_to_rownames(samples, var = c("sample"))
 ```
@@ -62,7 +62,6 @@ source(file.path("./scripts/01_inputs.R"))
 ```{r}
 head(samples)
 colnames(samples)
-
 var1 <- "Host"
 var2 <- "Driver"
 var3 <- "Type"
@@ -71,80 +70,49 @@ var5 <- "Replicate"
 var6 <- "LibraryBatch"
 var7 <- "SeqBatch"
 
-anno <- as.data.frame(samples[,c(var1, var2, var3)])
-colnames(anno)
+project_genes <- c("Egfr", "Pdgfra", "Pten", "Cdkn2a")
+
+anno <- as.data.frame(samples[,c(var1, var2, var3, var4)])
+anno %>%
+  group_by(Host, Driver, Type, Clone) %>%
+  summarize(n=n())
+
+# Get unique entries for each variable
+unique_values_by_var <- lapply(anno, unique)
+print(unique_values_by_var)
+
+anno_colors <- list(
+  Host = c("NSG" = 'gray', "BL6" = 'black'),
+  Driver = c("EGFRvIII" = 'blue', "EGFRvV" = 'dodgerblue', "PDGFRA" = 'red'),
+  Type = c("NS1" = 'gray80', "NS2" = 'gray50', "GBO" = 'black', "Tumor" = 'purple')
+)
 ```
 
-# dds
+# DESeq objects
 ```{r}
-#| label: "dds script"
+#| label: "txi_dds_filt script"
 #| echo: true
 
 # Source the external R script
-source(file.path("./scripts/02_dds.R")) 
+source(file.path("./scripts/02_txi_dds_filt.R")) 
 ```
 
-## txi checks
+# QC
 ```{r}
-counts_raw <- as.data.frame(txi$counts)
-look_for <- c("Egfr", "Pdgfra", "Pten", "Cdkn2a")
-counts_raw[rownames(counts_raw) %in% look_for, ]
-```
-# DDS
-```{r}
-#| label: "dds script"
-#| echo: false
-
-# Source the external R script
-source(file.path("./scripts/03_dds.R"))
-
-# Source the external R script
-source(file.path("./scripts/04_vsd.R"))
-```
-
-## DDS QC
-```{r}
-#| label: "RNAseqQC script"
+#| label: "QC script"
 #| echo: true
 
 # Source the external R script
-source(file.path("./scripts/05_QC.R")) 
+source(file.path("./scripts/03_QC.R")) 
 ```
 
-# Genes
+# DESeq2
 ```{r}
-#| label: "gene filter"
+#| label: "DESeq2 script"
 #| echo: true
 
 # Source the external R script
-source(file.path("./scripts/06_genes_mouse.R")) 
-```
-
-# DDS filter
-```{r}
-#| label: "dds filter script"
-#| echo: false
-
-# Source the external R script
-source(file.path("./scripts/07_dds_filt.R"))
-```
-
-# dds_filter QC
-```{r}
-#| label: "RNAseqQC filtered"
-#| echo: true
-
-# Source the external R script
-source(file.path("./scripts/08_QC_filt.R")) 
-```
-
-# dds_pcg QC
-```{r}
-#| label: "RNAseqQC pcg"
-#| echo: true
-
-# Source the external R script
-source(file.path("./scripts/09_QC_pcg.R")) 
+source(file.path("./scripts/04_DESeq.R")) 
 ```
 
 # Session
