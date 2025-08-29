@@ -8,6 +8,8 @@ library(biomaRt)
 pval <- 0.05
 qval <- 0.05
 lfc <- 1
+# filter cutoff (read counts)
+filt <- 20
 
 date <- format(Sys.Date(), format = "%Y%m%d")
 nc <- BiocParallel::multicoreWorkers()

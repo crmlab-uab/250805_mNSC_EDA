@@ -1,24 +1,25 @@
 # libraries
 library(DESeq2)
+library(BiocParallel)
 
 # DESeq2
-dds_res <- list()
-for (i in seq_along(dds_list)) {
-  system.time(dds_res[[i]] <- DESeq(dds_list[[i]]))
-}
-names(dds_res) <- names(dds_list)
+system.time(
+  des_pcg <- DESeq(
+    dds$pcg,
+    parallel = TRUE,
+    BPPARAM = MulticoreParam(nc)
+  )
+)
 
 # Results
-res_list <- list()
-for (i in seq_along(dds_res)) {
-  system.time(
-    res_list[[i]] <-
+system.time(
+    res <-
       results(
-        dds_res[[i]],
-        contrast = c("condition", "KO", "C"),
+        des_pcg,
+        contrast = c("Host", "BL6", "NSG"),
         alpha = qval,
         lfcThreshold = lfc,
         parallel = TRUE,
         BPPARAM = MulticoreParam(nc),
         pAdjustMethod = "fdr"))
-}
+summary(res)

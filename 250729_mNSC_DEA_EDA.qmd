@@ -1,20 +1,26 @@
 ---
-title: "mNSC DEG and EA"
+title: "mNSC DEA and EDA"
 author: "Ryan Miller"
 format: html
 editor: source
 ---
 
 # Libraries
-```{r results: 'hide'}
-# hides the chunk output
+```{r results}
+#| label: libraries
+#| echo: true
+#| message: false
+
 library("styler")
 library("tidyverse")
 library("rmarkdown")
 ```
 
-Imports
-Sample sheet from nextflow round 2 /data/project/MillerLab/projects/mNSC/250730_mNSC_nf-core
+Input Files
+Copied into the input folder on July 30, 2025
+
+Sample sheet from nextflow round 2
+/data/project/MillerLab/projects/mNSC/250730_mNSC_nf-core
 
 salmon gene counts
 Original file locations
@@ -23,26 +29,30 @@ Original file locations
 genome
 /data/project/MillerLab/genomes/GRCm39_vM37
 
-Files copied into the *input* folder on July 30, 2025
-
-# Sample metadata
+# Samples metadata
 ```{r}
+#| label: samples
+#| echo: true
+#| message: false
+
 setwd("/data")
 getwd()
-# path to original metadata
+
+# path to metadata
 samples_file <- "/data/input/samples.csv"
 
-# import metadata csv
+# import metadata
 samples <- read.csv(samples_file, header = TRUE, sep = ",")
 remove_rownames(samples) %>% has_rownames()
-
-# samples column to rownames
 rownames(samples) <- NULL
-samples <- column_to_rownames(samples, var = c("sample"))
+samples <- column_to_rownames(samples, var = "sample")
 ```
 
 ## sf files
 ```{r}
+#| label: sf files
+#| echo: true
+#| message: false
 samples$files_sf <- paste0("./sf/", rownames(samples), ".sf")
 files_sf <- samples$files_sf
 all(file.exists(files_sf))
@@ -50,72 +60,94 @@ all(file.exists(files_sf))
 
 # Inputs
 ```{r}
-#| label: "inputs"
+#| label: inputs
 #| echo: true
-#| file: 01_inputs.R
+#| message: false
 
-# Source the external R script
 source(file.path("./scripts/01_inputs.R")) 
 ```
 
 ## Project variables
 ```{r}
-head(samples)
-colnames(samples)
-var1 <- "Host"
-var2 <- "Driver"
-var3 <- "Type"
-var4 <- "Clone"
-var5 <- "Replicate"
-var6 <- "LibraryBatch"
-var7 <- "SeqBatch"
+#| label: project variables
+#| echo: true
+#| message: false
 
-project_genes <- c("Egfr", "Pdgfra", "Pten", "Cdkn2a")
+# Extract column names and assign to variables
+cn <- samples %>% colnames()
+cn
+vars <- setNames(as.list(cn), cn)
+# Ensure the indices are valid by checking the column names
+if (length(vars) >= 11) {
+  var1 <- as.character(vars[[6]])
+  var2 <- as.character(vars[[7]])
+  var3 <- as.character(vars[[10]])
+  var4 <- as.character(vars[[11]])
+} else {
+  stop("The 'samples' data frame does not have enough columns. Please check the input data.")
+}
+if (exists("var1") && exists("var2") && exists("var3") && exists("var4")) {
+  var_list <- c(var1, var2, var3, var4)
+} else {
+  stop("One or more variables (var1, var2, var3, var4) are not defined. Please check the input data.")
+}
 
-anno <- as.data.frame(samples[,c(var1, var2, var3, var4)])
+# Ensure all variables in var_list exist in the samples data frame
+valid_vars <- var_list[var_list %in% colnames(samples)]
+if (length(valid_vars) != length(var_list)) {
+  stop("One or more variables in var_list do not exist in the samples data frame. Please check the input data.")
+}
+
+anno <- as.data.frame(samples[, valid_vars])
 anno %>%
-  group_by(Host, Driver, Type, Clone) %>%
-  summarize(n=n())
+  group_by(across(all_of(valid_vars))) %>%
+  summarize(n = n(), .groups = "drop")
 
 # Get unique entries for each variable
 unique_values_by_var <- lapply(anno, unique)
-print(unique_values_by_var)
+unique_values_by_var
 
 anno_colors <- list(
   Host = c("NSG" = 'gray', "BL6" = 'black'),
   Driver = c("EGFRvIII" = 'blue', "EGFRvV" = 'dodgerblue', "PDGFRA" = 'red'),
   Type = c("NS1" = 'gray80', "NS2" = 'gray50', "GBO" = 'black', "Tumor" = 'purple')
 )
+
+des_design <- as.formula(paste("~", var3, "+", var1, "+", var2))
+
+project_genes <- c("Egfr", "Pdgfra", "Pten", "Cdkn2a")
 ```
 
 # DESeq objects
 ```{r}
-#| label: "txi_dds_filt script"
+#| label: txi_dds_filt script
 #| echo: true
+#| message: false
 
-# Source the external R script
-source(file.path("./scripts/02_txi_dds_filt.R")) 
+source(file.path("./scripts/02_data_prep.R")) 
 ```
 
 # QC
 ```{r}
-#| label: "QC script"
+#| label: QC script
 #| echo: true
+#| message: false
 
-# Source the external R script
 source(file.path("./scripts/03_QC.R")) 
 ```
 
 # DESeq2
 ```{r}
-#| label: "DESeq2 script"
+#| label: DESeq script
 #| echo: true
 
-# Source the external R script
 source(file.path("./scripts/04_DESeq.R")) 
 ```
 
 # Session
 ```{r}
+#| label: session
+#| echo: true
+
 sessionInfo()
 ```
