@@ -1,12 +1,14 @@
 ---
 title: "mNSC DEA and EDA"
 author: "Ryan Miller"
+date-modified: "`r Sys.Date()`"
 format: html
 editor: source
+toc: true
 ---
 
 # Libraries
-```{r results}
+```{r}
 #| label: libraries
 #| echo: true
 #| message: false
@@ -35,6 +37,7 @@ genome
 #| echo: true
 #| message: false
 
+getwd()
 setwd("/data")
 getwd()
 
@@ -62,15 +65,16 @@ all(file.exists(files_sf))
 ```{r}
 #| label: inputs
 #| echo: true
-#| message: false
+#| eval: true
 
-source(file.path("./scripts/01_inputs.R")) 
+source(file.path("./scripts/01_inputs.R"))
 ```
 
-## Project variables
+# Project variables
 ```{r}
 #| label: project variables
 #| echo: true
+#| eval: true
 #| message: false
 
 # Extract column names and assign to variables
@@ -118,10 +122,11 @@ des_design <- as.formula(paste("~", var3, "+", var1, "+", var2))
 project_genes <- c("Egfr", "Pdgfra", "Pten", "Cdkn2a")
 ```
 
-# DESeq objects
+# DESeq2 data prep
 ```{r}
-#| label: txi_dds_filt script
+#| label: data prep
 #| echo: true
+#| eval: true
 #| message: false
 
 source(file.path("./scripts/02_data_prep.R")) 
@@ -131,6 +136,7 @@ source(file.path("./scripts/02_data_prep.R"))
 ```{r}
 #| label: QC script
 #| echo: true
+#| eval: true
 #| message: false
 
 source(file.path("./scripts/03_QC.R")) 
@@ -138,8 +144,10 @@ source(file.path("./scripts/03_QC.R"))
 
 # DESeq2
 ```{r}
-#| label: DESeq script
+#| label: DESeq2
 #| echo: true
+#| eval: true
+#| message: false
 
 source(file.path("./scripts/04_DESeq.R")) 
 ```
