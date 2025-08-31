@@ -1,0 +1,221 @@
+---
+title: "Tomo mouse NSC bulk RNAseq profiling"
+subtitle: DESeq2
+author: "Ryan Miller"
+affiliation: UAB
+date: '`r format(Sys.time(), "Last modified: %d %b %Y")`'
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+editor_options:
+  chunk_output_type: inline
+---
+
+Files copied into the input folder on July 30, 2025:
+
+- **Sample sheet from nextflow round 2**  
+  `/data/project/MillerLab/projects/mNSC/250730_mNSC_nf-core`
+- **Salmon gene counts (Original file locations)**  
+  `/data/project/MillerLab/projects/mNSC/250730_mNSC_nf-core/sf`
+- **Genome**  
+  `/data/project/MillerLab/genomes/GRCm39_vM37`
+
+# R setup and variables
+## libraries
+```{r}
+#| title: setup
+#| echo: true
+#| message: false
+library("tidyverse")
+library("rmarkdown")
+```
+
+## folders
+```{r}
+dir_output <- "./output/"
+dir.create(paste0(dir_output))
+dir_graph <- "./graphs/"
+dir.create(paste0(dir_graph))
+```
+
+## metadata
+```{r}
+samples_file <- "./input/samples.csv" # Define the path to the samples file
+samples <- read.csv(samples_file, header = TRUE, sep = ",")
+samples <- remove_rownames(samples)
+samples <- column_to_rownames(samples, var = "sample")
+
+## summary
+colnames(samples)
+samples %>%
+  group_by(Driver, Type, Host) %>%
+  summarize(n = n())
+```
+
+## sf files
+```{r}
+samples$files_sf <- paste0("./sf/", rownames(samples), ".sf")
+files_sf <- samples$files_sf
+missing_files <- samples$files_sf[!file.exists(samples$files_sf)]
+missing_files <- files_sf[!file.exists(files_sf)]
+if (length(missing_files) > 0) {
+  stop(
+    "The following files are missing: ",
+    paste(missing_files, collapse = ", ")
+  )
+} else {
+  message("All files exist.")
+}
+all(file.exists(files_sf))
+```
+
+# Project variables
+## Variable extraction and checks
+```{r}
+## Extract column names and assign to variables
+cn <- samples %>% colnames()
+cn
+vars <- setNames(as.list(cn), cn)
+
+## Data checks
+### Ensure the indices are valid by checking the column names
+if (length(vars) >= 11) {
+  var1 <- as.character(vars[[6]])
+  var2 <- as.character(vars[[7]])
+  var3 <- as.character(vars[[10]])
+  var4 <- as.character(vars[[11]])
+} else {
+  stop("The 'samples' df does not have enough columns. Please check input.")
+}
+if (exists("var1") &&
+      exists("var2") &&
+      exists("var3") &&
+      exists("var4")) {
+  var_list <- c(var1, var2, var3, var4)
+} else {
+  stop("One or more variables not defined. Check input.")
+}
+
+### Ensure all variables in var_list exist in the samples data frame
+valid_vars <- var_list[var_list %in% colnames(samples)]
+if (length(valid_vars) != length(var_list)) {
+  missing_vars <- setdiff(var_list, colnames(samples))
+  stop(paste(
+    "The following in var_list do not exist in samples df:",
+    paste(missing_vars, collapse = ", ")
+  ))
+}
+```
+
+## graph annotations and colors
+```{r}
+anno <- as.data.frame(samples[, valid_vars])
+anno %>%
+  group_by(across(all_of(valid_vars))) %>%
+  summarize(n = n(), .groups = "drop")
+
+### Get unique entries for each variable
+unique_values_by_var <- lapply(anno, unique)
+unique_values_by_var
+
+anno_colors <- list(
+  Host = c("NSG" = "gray", "BL6" = "black"),
+  Driver = c(
+    "EGFRvIII" = "blue",
+    "EGFRvV" = "dodgerblue",
+    "PDGFRA" = "red"
+  ),
+  Type = c(
+    "NS1" = "lightgray",
+    "NS2" = "darkgray",
+    "GBO" = "black",
+    "Tumor" = "purple"
+  )
+)
+```
+
+## design
+```{r}
+### Validate that vars are properly defined and exist in samples df
+if (!all(c(var1, var2, var3) %in% colnames(samples))) {
+  stop(
+    "One or more variables are not valid column names in the samples."
+  )
+}
+des_design <- as.formula(paste("~", var3, "+", var1, "+", var2))
+
+project_genes <- c("Egfr", "Pdgfra", "Pten", "Cdkn2a")
+```
+
+# Source scripts
+
+# Inputs
+```{r}
+#| title: inputs
+#| eval: true
+#| echo: true
+#| local: false
+#| message: false
+#| child: 'data/scripts/01_inputs.rmd'
+
+# This script loads and processes the input data required for the analysis,
+# including reading sample information and preparing metadata.
+if (file.exists("data/scripts/01_inputs.rmd")) {
+  source("data/scripts/01_inputs.rmd")
+} else {
+  stop("The source file does not exist. Please check the file path.")
+}
+```
+
+# Data prep
+```{r}
+#| title: data prep
+#| eval: true
+#| echo: true
+#| local: false
+#| message: false
+#| child: 'data/scripts/02_data_prep.rmd'
+if (file.exists("data/scripts/02_data_prep.rmd")) {
+  source("data/scripts/02_data_prep.rmd")
+} else {
+  stop("The source file does not exist. Please check the file path.")
+}
+```
+
+# QC
+```{r}
+#| title: QC
+#| eval: true
+#| echo: true
+#| local: false
+#| message: false
+#| child: 'data/scripts/03_QC.rmd'
+if (file.exists("data/scripts/03_QC.rmd")) {
+  source("data/scripts/03_QC.rmd")
+} else {
+  stop("The source file does not exist. Please check the file path.")
+}
+```
+
+# DESeq2
+```{r}
+#| title: DESeq2
+#| eval: true
+#| echo: true
+#| local: false
+#| message: false
+#| child: 'data/scripts/04_DESeq.rmd'
+if (file.exists("data/scripts/04_DESeq.rmd")) {
+  source("data/scripts/04_DESeq.rmd")
+} else {
+  stop("The source file does not exist. Please check the file path.")
+}
+```
+
+# Session
+```{r}
+## R environment details, including loaded packages and their versions.
+## This is useful for debugging and ensuring reproducibility of the analysis.
+sessionInfo()
+```
