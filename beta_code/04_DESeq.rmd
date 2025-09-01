@@ -1,0 +1,30 @@
+## libraries
+```{r}
+#| echo: true
+#| message: false
+knitr::opts_knit$set(root.dir = "./data")
+library(DESeq2)
+library(BiocParallel)
+```
+
+## DESeq2
+```{r}
+system.time(des_pcg <- DESeq(dds$pcg, parallel = TRUE, BPPARAM = MulticoreParam(nc)))
+```
+
+## results
+```{r}
+system.time(
+  res <-
+    results(
+      des_pcg,
+      contrast = c("Host", "BL6", "NSG"),
+      alpha = qval,
+      lfcThreshold = lfc,
+      parallel = TRUE,
+      BPPARAM = MulticoreParam(nc),
+      pAdjustMethod = "fdr"
+    )
+)
+summary(res)
+```

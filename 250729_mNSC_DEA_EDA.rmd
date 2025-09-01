@@ -2,7 +2,7 @@
 title: "Tomo mouse NSC bulk RNAseq profiling"
 subtitle: DESeq2
 author: "Ryan Miller"
-affiliation: UAB
+affiliation: "UAB"
 date: '`r format(Sys.time(), "Last modified: %d %b %Y")`'
 output:
   html_document:
@@ -24,19 +24,21 @@ Files copied into the input folder on July 30, 2025:
 # R setup and variables
 ## libraries
 ```{r}
-#| title: setup
 #| echo: true
 #| message: false
 library("tidyverse")
 library("rmarkdown")
+library("reactable")
 ```
 
 ## folders
 ```{r}
+getwd()
 dir_output <- "./output/"
-dir.create(paste0(dir_output))
+dir.create(dir_output)
 dir_graph <- "./graphs/"
-dir.create(paste0(dir_graph))
+dir.create(dir_graph)
+getwd()
 ```
 
 ## metadata
@@ -46,11 +48,27 @@ samples <- read.csv(samples_file, header = TRUE, sep = ",")
 samples <- remove_rownames(samples)
 samples <- column_to_rownames(samples, var = "sample")
 
+## Display as an interactive table
+reactable(
+  samples,
+  searchable = TRUE,
+  filterable = TRUE,
+  resizable = TRUE
+)
+
 ## summary
 colnames(samples)
-samples %>%
+summarized_samples <- samples %>%
   group_by(Driver, Type, Host) %>%
-  summarize(n = n())
+  summarize(n = n(), .groups = "drop")
+
+## Display the summarized data as an interactive table
+reactable(
+  summarized_samples,
+  searchable = TRUE,
+  filterable = TRUE,
+  resizable = TRUE
+)
 ```
 
 ## sf files
@@ -71,34 +89,35 @@ all(file.exists(files_sf))
 ```
 
 # Project variables
-## Variable extraction and checks
+## variables and checks
 ```{r}
-## Extract column names and assign to variables
+# Extract column names and assign to variables
 cn <- samples %>% colnames()
 cn
 vars <- setNames(as.list(cn), cn)
 
 ## Data checks
-### Ensure the indices are valid by checking the column names
-if (length(vars) >= 11) {
-  var1 <- as.character(vars[[6]])
-  var2 <- as.character(vars[[7]])
-  var3 <- as.character(vars[[10]])
-  var4 <- as.character(vars[[11]])
+## Ensure validity of column names
+if (length(vars) >= 18) {
+  var1 <- as.factor(vars[[6]])
+  var2 <- as.factor(vars[[7]])
+  var3 <- as.factor(vars[[10]])
+  var4 <- as.factor(vars[[11]])
+  var5 <- as.factor(vars[[18]])
 } else {
   stop("The 'samples' df does not have enough columns. Please check input.")
 }
 if (exists("var1") &&
-      exists("var2") &&
-      exists("var3") &&
-      exists("var4")) {
-  var_list <- c(var1, var2, var3, var4)
+    exists("var2") &&
+    exists("var3") &&
+    exists("var5")) {
+  var_list <- c(var1, var2, var3, var5)
 } else {
   stop("One or more variables not defined. Check input.")
 }
 
-### Ensure all variables in var_list exist in the samples data frame
-valid_vars <- var_list[var_list %in% colnames(samples)]
+# Ensure all variables in var_list exist in the samples data frame
+valid_vars <- as.character(var_list[var_list %in% colnames(samples)])
 if (length(valid_vars) != length(var_list)) {
   missing_vars <- setdiff(var_list, colnames(samples))
   stop(paste(
@@ -111,11 +130,18 @@ if (length(valid_vars) != length(var_list)) {
 ## graph annotations and colors
 ```{r}
 anno <- as.data.frame(samples[, valid_vars])
-anno %>%
+summarized_anno <- anno %>%
   group_by(across(all_of(valid_vars))) %>%
   summarize(n = n(), .groups = "drop")
+# Display as an interactive table
+reactable(
+  summarized_anno,
+  searchable = TRUE,
+  filterable = TRUE,
+  resizable = TRUE
+)
 
-### Get unique entries for each variable
+# Get unique entries for each variable
 unique_values_by_var <- lapply(anno, unique)
 unique_values_by_var
 
@@ -138,79 +164,69 @@ anno_colors <- list(
 ## design
 ```{r}
 ### Validate that vars are properly defined and exist in samples df
-if (!all(c(var1, var2, var3) %in% colnames(samples))) {
-  stop(
-    "One or more variables are not valid column names in the samples."
-  )
+if (!all(c(var1, var2, var3, var5) %in% colnames(samples))) {
+  stop("One or more variables are not valid column names in samples.")
 }
-des_design <- as.formula(paste("~", var3, "+", var1, "+", var2))
+des_design <- as.formula(paste("~", var5, "+", var3, "+", var1, "+", var2))
 
 project_genes <- c("Egfr", "Pdgfra", "Pten", "Cdkn2a")
 ```
 
 # Source scripts
-
-# Inputs
 ```{r}
-#| title: inputs
-#| eval: true
-#| echo: true
-#| local: false
-#| message: false
-#| child: 'data/scripts/01_inputs.rmd'
-
-# This script loads and processes the input data required for the analysis,
-# including reading sample information and preparing metadata.
-if (file.exists("data/scripts/01_inputs.rmd")) {
-  source("data/scripts/01_inputs.rmd")
-} else {
-  stop("The source file does not exist. Please check the file path.")
-}
+#| include: false
+# This chunk reads all the code from the child R scripts
+# The include=FALSE option prevents the chunk from being displayed,
+# but the read_chunk() calls will make the chunks available
+# for later use.
+knitr::read_chunk('./scripts/01_inputs.R')
+knitr::read_chunk('./scripts/02_data_prep.R')
+knitr::read_chunk('./scripts/03_QC.R')
+knitr::read_chunk('./scripts/04_DESeq.R')
 ```
 
-# Data prep
+## Inputs
 ```{r}
-#| title: data prep
 #| eval: true
 #| echo: true
+#| include: true
 #| local: false
 #| message: false
-#| child: 'data/scripts/02_data_prep.rmd'
-if (file.exists("data/scripts/02_data_prep.rmd")) {
-  source("data/scripts/02_data_prep.rmd")
-} else {
-  stop("The source file does not exist. Please check the file path.")
-}
+file <- './scripts/01_inputs.R'
+source(file)
 ```
 
-# QC
+## Data prep
 ```{r}
-#| title: QC
 #| eval: true
 #| echo: true
+#| include: true
 #| local: false
 #| message: false
-#| child: 'data/scripts/03_QC.rmd'
-if (file.exists("data/scripts/03_QC.rmd")) {
-  source("data/scripts/03_QC.rmd")
-} else {
-  stop("The source file does not exist. Please check the file path.")
-}
+file <- './scripts/02_data_prep.R'
+source(file)
 ```
 
-# DESeq2
+## QC
 ```{r}
-#| title: DESeq2
 #| eval: true
 #| echo: true
+#| include: true
 #| local: false
 #| message: false
-#| child: 'data/scripts/04_DESeq.rmd'
-if (file.exists("data/scripts/04_DESeq.rmd")) {
-  source("data/scripts/04_DESeq.rmd")
-} else {
-  stop("The source file does not exist. Please check the file path.")
-}
+file <- './scripts/03_QC.R'
+source(file)
+```
+
+## DESeq2
+```{r}
+#| eval: true
+#| echo: true
+#| include: true
+#| local: false
+#| message: false
+file <- './scripts/04_DESeq.R'
+source(file)
 ```
 
 # Session
