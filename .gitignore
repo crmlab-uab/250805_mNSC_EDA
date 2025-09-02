@@ -56,3 +56,6 @@ workspace.RData
 
 *.sf
 *.gz
+sf/
+output/
+graphs/
