@@ -53,3 +53,6 @@ rsconnect/
 .Renviron
 .RData
 workspace.RData
+
+/sf/*.*
+/input/*.gz

@@ -12,26 +12,36 @@ output:
 ---
 
 ### Project Setup
-This document runs a full differential expression analysis pipeline. The modular scripts are stored in a `./scripts/` subdirectory.
+This document runs a full differential expression analysis pipeline within a containerized environment.  It assumes all packages are pre-installed, as in a Docker container. All paths are relative to the /data project root.
 
 <hr>
 
 ### R Setup and Global Variables
 
-#### Package Installation and Libraries
+#### 1. Library Loading
 This chunk sources the setup script to install any missing packages. Then it loads the core libraries for the main document.
-```{r setup, message=TRUE, warning=FALSE}
-# Source the setup script to ensure a reproducible environment
+```{r, message=TRUE, warning=FALSE}
+# Source the setup script to ensure a reproducible environment and load all packages
 source("./scripts/00_setup.R")
-
-# Load libraries needed for the main Rmd file
-library("tidyverse")
-library("rmarkdown")
-library("reactable")
-library("RColorBrewer")
 ```
 
-#### Define Directories and Parameters
+#### 2. Sample metadata 
+```{r}
+# load from the project root directory
+samples <- read.csv("./input/samples.csv", row.names = 1, header = TRUE)
+message("Displaying sample metadata:")
+print(reactable(samples))
+
+# Generate paths to salmon quantification files
+files_sf <- paste0("./sf/", rownames(samples), ".sf")
+names(files_sf) <- rownames(samples)
+if (!all(file.exists(files_sf))) {
+  stop("One or more Salmon quantification files are missing")
+}
+```
+
+
+#### 3. Define Directories and Parameters
 Global parameters for the analysis are defined here. Child scripts will inherit these.
 ```{r global_vars}
 # Output directories
@@ -53,25 +63,29 @@ set.seed(888)
 
 # GOI
 project_genes <- c("Egfr", "Pdgfra", "Pten", "Cdkn2a")
+
+# Colors
+blp <- colorRampPalette(rev(brewer.pal(9, "Blues")))(255)
+ryb <- colorRampPalette(rev(brewer.pal(n = 7, name = "RdYlBu")))(100)
 ```
 
-#### DESeq2 Model Design
+#### 4. DESeq2 Model Design
 Define the statistical models that will be used for the analysis.
 ```{r model_design}
-# Variables for the DESeq2 model design
-vars <- c("Type", "Host", "Driver")
-vars_int <- c("Host*Driver", "Host*Type", "Driver*Type")
-var4 <- "SeqBatch"
+# Variables for the DESeq2 model designs
+vars <- c("SeqBatch", "Type", "Host", "Driver")
+vars_int <- c("Type*Driver")
+sb <- "SeqBatch"
 
 # Create a named list of design formulas
-design_list <- list(
-  model_1 = as.formula(paste("~", paste(vars, collapse = " + "))),
-  model_2 = as.formula(paste("~", paste(var4, paste(vars_int, collapse = " + "), sep = " + ")))
-)
+designs <- list(model_1 = as.formula(paste("~", paste(vars, collapse = " + "))),
+                model_2 = as.formula(paste("~", sb, "+", 
+                                           paste(vars_int, collapse = " + ")
+)))
 print("Models to be used in the analysis:")
-print(design_list)
+print(designs)
 ```
-### Genesets
+#### 5. Genesets
 ```{r}
 #### Kinases
 file_kinases <- "./genesets/201006_composite_kinases.csv"
@@ -85,23 +99,8 @@ head(kinases)
 kinase_genes <- kinases$Mouse_symbol
 ```
 
-<hr>
-
-### Analysis Pipeline
-This section sources the external R scripts that perform the analysis. Each script is run in the global environment to ensure it can access and modify shared data objects.
-
-#### 1. Load Inputs
-```{r run_inputs, echo=TRUE}
-source("./scripts/01_inputs.R", local = knitr::knit_global())
-```
-
-#### 2. Prepare Data
-```{r run_data_prep, echo=TRUE}
-source("./scripts/02_data_prep.R", local = knitr::knit_global())
-```
-
-#### 1A. Graph Annotations and Colors
-```{r}
+#### 6. Graph Annotations and Colors
+```{r echo=TRUE, message=FALSE}
 anno_vars <- c("Type", "Host", "Driver")
 anno <- as.data.frame(samples[, anno_vars])
 summarized_anno <- anno %>%
@@ -135,12 +134,27 @@ anno_colors <- list(
 )
 ```
 
+<hr>
+
+### Analysis Pipeline
+This section sources the external R scripts that perform the analysis. Each script is run in the global environment to ensure it can access and modify shared data objects. local = knitr::knit_global() is critical for ensuring they all run in the same environment and can share variables.
+
+#### 1. Mouse Genes
+```{r echo=TRUE, message=FALSE, include = TRUE}
+source("./scripts/01_genes_mouse.R", local = knitr::knit_global())
+```
+
+#### 2. Prepare Data
+```{r echo=TRUE, message=FALSE, include = TRUE}
+source("./scripts/02_data_prep.R", local = knitr::knit_global())
+```
+
 #### 3. Quality Control
-```{r run_qc, echo=TRUE}
+```{r echo=TRUE, message=FALSE, include = TRUE}
 source("./scripts/03_QC.R", local = knitr::knit_global())
 ```
 
 #### 4. Differential Expression Analysis
-```{r run_deseq, echo=TRUE}
+```{r echo=TRUE, message=FALSE, include = TRUE}
 source("./scripts/04_DESeq.R", local = knitr::knit_global())
 ```
