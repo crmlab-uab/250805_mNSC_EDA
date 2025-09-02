@@ -1,60 +1,33 @@
-# @knitr libraries
-library(BiocParallel)
-library(colorRamps)
-library(RColorBrewer)
+# 01_inputs.R
+message("--- Running 01_inputs.R: Loading Data ---")
 library(biomaRt)
+library(reactable)
 
-# @knitr deseq2 variables
-pval <- 0.05
-qval <- 0.05
-lfc <- 1
+# Load sample metadata from the project root directory
+samples <- read.csv("./input/samples.csv", row.names = 1, header = TRUE)
+message("Displaying sample metadata:")
+print(reactable(samples))
 
-# @knitr low read counts filter cutoff
-filt <- 20
-
-# @knitr date and cores
-date <- format(Sys.Date(), format = "%Y%m%d")
-nc <- BiocParallel::multicoreWorkers()
-
-# @knitr colors
-blp <- colorRampPalette(rev(brewer.pal(9, "Blues")))(255)
-ryb <- colorRampPalette(rev(brewer.pal(n = 7, name = "RdYlBu")))(100)
-
-# @knitr seed
-set.seed(888)
-
-# @knitr genome
-## /data/project/MillerLab/genomes/GRCm39_vM37
-
-## import tx2gene (contains 3 columns)
-## Col 1 - Ensembl txID [transcript_id]
-## Col 2 - Ensembl geneID [gene_id]
-## Col 3 - gene_name
-
+# Load tx2gene mapping file
 tx2gene_file <- "./input/tx2gene.tsv"
 if (!file.exists(tx2gene_file)) {
   stop("tx2gene mapping file not found at: ", tx2gene_file)
 }
+tx_geneID_genename <- read.delim2(file = tx2gene_file, header = TRUE, sep = "\t")
+tx_gene_symbol <- tx_geneID_genename[, c(1, 3)]
+colnames(tx_gene_symbol) <- c("TXNAME", "GENEID")
 
-tx_geneID_genename <- read.delim2(
-  file = tx2gene_file,
-  header = TRUE, sep = "\t")
-colnames(tx_geneID_genename)
+# Get paths to salmon quantification files, assuming they are in sub-folders
+files_sf <- paste0("./input/", rownames(samples), ".sf")
+names(files_sf) <- rownames(samples)
+if (!all(file.exists(files_sf))) {
+  stop("One or more Salmon quantification files are missing.")
+}
+message("Salmon quantification file paths generated.")
 
-tx_gene_symbol <- tx_geneID_genename[-2] # remove gene_id column
-head(tx_gene_symbol)
-
-tx_gene <- tx_geneID_genename[-3] # remove gene_name column
-head(tx_gene)
-
-# ID_to_symbols
-genes <- tx_gene_symbol$gene_name
-length(genes)
-mart <-
-  useEnsembl(biomart = "ensembl",
-             dataset = "mmusculus_gene_ensembl",
-             mirror = "useast")
-genes_mouse <-
+# Gene Annotation using biomaRt
+mart <- useMart("ensembl", dataset = "mmusculus_gene_ensembl")
+genes <-
   biomaRt::getBM(
     attributes = c(
       "ensembl_gene_id_version",
@@ -71,23 +44,23 @@ genes_mouse <-
     values = genes,
     mart = mart
   )
-write.csv(genes_mouse,
+
+write.csv(genes,
           file = paste0(
             dir_output,
             format(Sys.Date(), "%y%m%d"),
             "_genes_mouse_vM37.csv"
           ))
 
-# @knitr mouse genes
-genes_mouse %>%
+# mouse genes
+genes %>%
   group_by(gene_biotype) %>%
   summarize(n = n())
 
-# @knitr pcg
-pcg <-
+# pcg
+pcg_df <-
   subset(genes_mouse, genes_mouse$gene_biotype == "protein_coding")
-dim(pcg)
-pcg_df <- pcg
+dim(pcg_df)
 
 ## Remove "RIKEN" genes
 pcg_df <- pcg_df[!grepl("RIKEN", pcg_df$description), ]
@@ -106,20 +79,9 @@ pcg_df <- subset(pcg_df, pcg_df$chromosome_name != "MT")
 dim(pcg_df)
 ## Include only somatic chromosomes
 pcg_df <- subset(pcg_df, pcg_df$chromosome_name %in% c(1:19, "X", "Y"))
-
 dim(pcg_df)
+
 write.csv(pcg_df, file = paste0(dir_output, "genes_mouse_vM37_pcg.csv"))
 
 pcg <- as.vector(pcg_df$mgi_symbol)
-
-# @knitr genesets
-# kinases
-file_kinases <- "./genesets/201006_composite_kinases.csv"
-if (file.exists(file_kinases)) {
-  kinases <- read.csv(file_kinases, header = TRUE, fileEncoding = "UTF-8-BOM")
-} else {
-  stop(paste("File not found:", file_kinases))
-}
-str(kinases)
-head(kinases)
-kinase_genes <- kinases$Mouse_symbol
+message("Gene annotations fetched.")

@@ -1,172 +1,108 @@
 ---
 title: "Tomo mouse NSC bulk RNAseq profiling"
-subtitle: "DESeq2(Reproducible Analysis)"
+subtitle: "DESeq2 (Modular & Reproducible Analysis)"
 author: "Ryan Miller"
 date: '`r format(Sys.time(), "Last modified: %d %b %Y")`'
 output:
   html_document:
     toc: yes
     toc_float: yes
-code_folding: show
-theme: journal
+    code_folding: show
+    theme: journal
 ---
 
-Files copied into the input folder on July 30, 2025
-Original file locations
+### Project Setup
+This document runs a full differential expression analysis pipeline. The modular scripts are stored in a `./scripts/` subdirectory.
 
-- **Sample sheet from nextflow round 2**  
-  `/data/project/MillerLab/projects/mNSC/250730_mNSC_nf-core`
-- **Salmon gene counts**  
-  `/data/project/MillerLab/projects/mNSC/250730_mNSC_nf-core/sf`
-- **Genome**  
-  `/data/project/MillerLab/genomes/GRCm39_vM37`
+<hr>
 
-Project Setup
-This document runs a full differential expression analysis pipeline. For reproducibility, especially within a Docker container, first ensure all required packages are installed by running the scripts/00_setup.R script.
+### R Setup and Global Variables
 
-# R setup and variables
-## libraries
-```{r}
-#| echo: true
-#| message: false
+#### Package Installation and Libraries
+This chunk sources the setup script to install any missing packages. Then it loads the core libraries for the main document.
+```{r setup, message=TRUE, warning=FALSE}
+# Source the setup script to ensure a reproducible environment
+source("./scripts/00_setup.R")
+
+# Load libraries needed for the main Rmd file
 library("tidyverse")
 library("rmarkdown")
 library("reactable")
+library("RColorBrewer")
 ```
 
-## folders
-```{r}
-# Create output directories if they don't already exist
+#### Define Directories and Parameters
+Global parameters for the analysis are defined here. Child scripts will inherit these.
+```{r global_vars}
+# Output directories
 dir_output <- "./output/"
 dir_graph <- "./graphs/"
 dir.create(dir_output, showWarnings = FALSE, recursive = TRUE)
 dir.create(dir_graph, showWarnings = FALSE, recursive = TRUE)
-```
 
-## metadata
-```{r}
-samples_file <- "./input/samples.csv" # Define the path to the samples file
-samples <- read.csv(samples_file, header = TRUE, sep = ",")
-samples <- remove_rownames(samples)
-samples <- column_to_rownames(samples, var = "sample")
+# DESeq2 parameters
+pval <- 0.05
+qval <- 0.05
+lfc <- 1
+filt <- 20 # Low read count filter cutoff
 
-# Ensure factors are set with a specific reference level for modeling
-samples$Host <- factor(samples$Host, levels = c("BL6", "NSG"))
-samples$Driver <- factor(samples$Driver, levels = c("EGFRvIII", "EGFRvV", "PDGFRA"))
+# Other variables
+date <- format(Sys.Date(), format = "%Y%m%d")
+nc <- BiocParallel::multicoreWorkers()
+set.seed(888)
 
-## Display as an interactive table
-reactable(
-  samples,
-  searchable = TRUE,
-  filterable = TRUE,
-  resizable = TRUE
-)
-
-## summary
-colnames(samples)
-summarized_samples <- samples %>%
-  group_by(Driver, Type, Host) %>%
-  summarize(n = n(), .groups = "drop")
-
-## Display the summarized data as an interactive table
-reactable(
-  summarized_samples,
-  searchable = TRUE,
-  filterable = TRUE,
-  resizable = TRUE
-)
-```
-
-## sample subsets
-```{r}
-# ns1_by_host_and_driver
-subset_1 <- subset(samples, samples$Type=="NS1")
-reactable(
-  subset_1,
-  searchable = TRUE,
-  filterable = TRUE,
-  resizable = TRUE
-)
-
-# bl6_by_type_and_driver
-subset_2 <- subset(samples, samples$Host=="BL6")
-reactable(
-  subset_2,
-  searchable = TRUE,
-  filterable = TRUE,
-  resizable = TRUE
-)
-```
-
-## sf files
-```{r}
-# Assuming salmon files are in a subfolder named 'sf' inside 'input'
-files_sf <- file.path("./sf", paste0(rownames(samples), ".sf"))
-names(files_sf) <- rownames(samples)
-
-# Check that all specified files exist
-missing_files <- files_sf[!file.exists(files_sf)]
-if (length(missing_files) > 0) {
-  stop(
-    "The following files are missing: ",
-    paste(missing_files, collapse = ", ")
-  )
-} else {
-  message("All sample files exist.")
-}
-```
-
-# Project variables
-## variables and checks
-```{r}
-# Extract column names and assign to variables
-cn <- samples %>% colnames()
-cn
-vars <- setNames(as.list(cn), cn)
-
-## Data checks
-  var1 <- "Driver"
-  var2 <- "Host"
-  var3 <- "Type"
-  var4 <- "SeqBatch"
-
-if (exists("var1") &&
-    exists("var2") &&
-    exists("var3") &&
-    exists("var4")) {
-  vars <- c(var4, var3, var2, var1)
-} else {
-  stop("One or more variables not defined. Check input.")
-}
-
-# Ensure all variables in vars exist in the samples data frame
-valid_vars <- as.character(vars[vars %in% colnames(samples)])
-if (length(valid_vars) != length(vars)) {
-  missing_vars <- setdiff(vars, colnames(samples))
-  stop(paste(
-    "The following in vars do not exist in samples df:",
-    paste(missing_vars, collapse = ", ")
-  ))
-}
-
-# add interaction variables
-var_int_1 <- paste0(var1,":", var2)
-var_int_2 <- paste0(var1, ":", var3)
-var_int_3 <- paste0(var1, ":", var2, ":", var3)
-vars_int <- c(var_int_1, var_int_2, var_int_3)
-
-# complete variable for model
-vars_2 <- c(vars, vars_int)
-```
-
-## GOI
-```{r}
+# GOI
 project_genes <- c("Egfr", "Pdgfra", "Pten", "Cdkn2a")
 ```
 
-## graph annotations and colors
+#### DESeq2 Model Design
+Define the statistical models that will be used for the analysis.
+```{r model_design}
+# Variables for the DESeq2 model design
+vars <- c("Type", "Host", "Driver")
+vars_int <- c("Host*Driver", "Host*Type", "Driver*Type")
+var4 <- "SeqBatch"
+
+# Create a named list of design formulas
+design_list <- list(
+  model_1 = as.formula(paste("~", paste(vars, collapse = " + "))),
+  model_2 = as.formula(paste("~", paste(var4, paste(vars_int, collapse = " + "), sep = " + ")))
+)
+print("Models to be used in the analysis:")
+print(design_list)
+```
+### Genesets
 ```{r}
-anno_vars <- c(var1, var2, var3)
+#### Kinases
+file_kinases <- "./genesets/201006_composite_kinases.csv"
+if (file.exists(file_kinases)) {
+  kinases <- read.csv(file_kinases, header = TRUE, fileEncoding = "UTF-8-BOM")
+} else {
+  stop(paste("File not found:", file_kinases))
+}
+str(kinases)
+head(kinases)
+kinase_genes <- kinases$Mouse_symbol
+```
+
+<hr>
+
+### Analysis Pipeline
+This section sources the external R scripts that perform the analysis. Each script is run in the global environment to ensure it can access and modify shared data objects.
+
+#### 1. Load Inputs
+```{r run_inputs, echo=TRUE}
+source("./scripts/01_inputs.R", local = knitr::knit_global())
+```
+
+#### 2. Prepare Data
+```{r run_data_prep, echo=TRUE}
+source("./scripts/02_data_prep.R", local = knitr::knit_global())
+```
+
+#### 1A. Graph Annotations and Colors
+```{r}
+anno_vars <- c("Type", "Host", "Driver")
 anno <- as.data.frame(samples[, anno_vars])
 summarized_anno <- anno %>%
   group_by(across(all_of(anno_vars))) %>%
@@ -199,62 +135,12 @@ anno_colors <- list(
 )
 ```
 
-## DESeq2 model design
-```{r}
-# Validate that vars are properly defined and exist in samples df
-if (!all(vars %in% colnames(samples))) {
-  stop("One or more variables are not valid column names in samples.")
-}
-
-designs <- list(
-  # Model 1: Simple model with only main effects.
-  # Analyze the effect of Host or Driver averaged across other conditions.
-  model_1 <- as.formula(paste("~", paste(vars, collapse = " + ")))
-  
-  # Model 2: Full model with an interaction term between Driver and Host and Type.
-  # Use this to ask if the effect of the Host different for each Driver
-  model_2 <- as.formula(paste("~", paste(
-    var4, vars_int, collapse = " + "
-  )))
-)
-print(designs)
+#### 3. Quality Control
+```{r run_qc, echo=TRUE}
+source("./scripts/03_QC.R", local = knitr::knit_global())
 ```
 
-# Analysis Pipeline
-This section sources the external R scripts that perform the analysis. Each step builds upon the previous one.
-
-# Source scripts to global env
-## 1. inputs
-```{r}
-#| echo: true
-#| message: false
-source("./scripts/01_inputs.R")
-```
-
-## 2. data prep
-```{r}
-#| echo: true
-#| message: false
-source("./scripts/02_data_prep.R")
-```
-
-## 3. Quality control
-```{r}
-#| echo: true
-#| message: false
-source("./scripts/03_QC.R")
-```
-
-## 4. DESeq2
-```{r}
-#| echo: true
-#| message: false
-source("./scripts/04_DESeq.R")
-```
-
-# Session
-```{r}
-## R environment details, including loaded packages and their versions.
-## This is useful for debugging and ensuring reproducibility.
-sessionInfo()
+#### 4. Differential Expression Analysis
+```{r run_deseq, echo=TRUE}
+source("./scripts/04_DESeq.R", local = knitr::knit_global())
 ```

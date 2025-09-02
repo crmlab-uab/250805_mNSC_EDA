@@ -1,32 +1,33 @@
-# libraries
-library(RNAseqQC)
+# 03_QC.R
+message("--- Running 03_QC.R: Quality Control ---")
 library(pheatmap)
-library(RColorBrewer)
 library(ggplot2)
 
-# Load the VST data if not already in the environment
-if (!exists("vsd_models")) {
-  vsd_models <- readRDS(paste0(dir_output, date, "_vsd_models_list.rds"))
-}
-
-# Generate and save standard QC plots
-qc_plots <- list()
-for (name in names(dds_list)) {
-  qc_plots[[name]][['total_counts']] <- plot_total_counts(dds_list[[name]])
-  qc_plots[[name]][['library_complexity']] <- plot_library_complexity(dds_list[[name]])
-  qc_plots[[name]][['gene_detection']] <- plot_gene_detection(dds_list[[name]])
-}
-
-# Save plots to PDF
-for (name in names(qc_plots)) {
-  for (plot_type in names(qc_plots[[name]])) {
-    ggsave(filename = paste0(dir_graph, plot_type, "_", name, ".pdf"),
-           plot = qc_plots[[name]][[plot_type]])
+# --- RNAseqQC plots (will run only if the package is installed) ---
+if (requireNamespace("RNAseqQC", quietly = TRUE)) {
+  message("RNAseqQC package found. Generating standard QC plots...")
+  qc_plots <- list()
+  # Corrected to loop through dds_models
+  for (name in names(dds_models)) {
+    qc_plots[[name]][['total_counts']] <- RNAseqQC::plot_total_counts(dds_models[[name]]$filt)
+    qc_plots[[name]][['library_complexity']] <- RNAseqQC::plot_library_complexity(dds_models[[name]]$filt)
+    qc_plots[[name]][['gene_detection']] <- RNAseqQC::plot_gene_detection(dds_models[[name]]$filt)
   }
+  # Save plots to PDF
+  for (name in names(qc_plots)) {
+    for (plot_type in names(qc_plots[[name]])) {
+      ggsave(
+        filename = paste0(dir_graph, plot_type, "_", name, ".pdf"),
+        plot = qc_plots[[name]][[plot_type]]
+      )
+    }
+  }
+} else {
+  message("RNAseqQC package not found. Skipping plots that depend on it.")
 }
 
-# Mean-SD plots
-for (name in names(vsd_list)) {
+# --- Mean-SD plots ---
+for (name in names(vsd_models)) {
   pdf(paste0(
     dir_graph,
     format(Sys.Date(), "%y%m%d"),
@@ -34,13 +35,13 @@ for (name in names(vsd_list)) {
     name,
     ".pdf"
   ))
-  DESeq2::meanSdPlot(assay(vsd_list[[name]]))
+  DESeq2::meanSdPlot(assay(vsd_models[[name]]))
   dev.off()
 }
 
 # Density plots of normalized counts
-for (name in names(dds_list)) {
-  norm_counts <- counts(dds_list[[name]], normalized = TRUE)
+for (name in names(dds_models)) {
+  norm_counts <- counts(dds_models[[name]], normalized = TRUE)
   # Adding +1 to avoid log(0).
   log_norm_counts <- log10(norm_counts + 1)
   # Convert to a long format for ggplot
@@ -61,7 +62,7 @@ for (name in names(dds_list)) {
 
 # Dispersion Estimates Plot (run only on the object used for DEA)
 pdf(file = paste0(dir_graph, "Dispersion_Estimates.pdf"))
-plotDispEsts(dds_list$pcg)
+plotDispEsts(dds_models$pcg)
 dev.off()
 
 # --- Boxplots of Count Distributions ---
@@ -88,18 +89,24 @@ for (model_name in names(dds_models)) {
   
   p <- ggplot(df_counts, aes(x = sample, y = log2_count, fill = type)) +
     geom_boxplot(outlier.shape = NA) +
-    facet_wrap(~type, scales = "free_y", ncol = 1) +
+    facet_wrap( ~ type, scales = "free_y", ncol = 1) +
     labs(
       title = paste("Count Distributions (Model:", model_name, ")"),
       x = "Sample",
       y = "Log2(count + 1)"
     ) +
     theme_bw() +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+    theme(axis.text.x = element_text(
+      angle = 90,
+      hjust = 1,
+      vjust = 0.5
+    ))
   
   ggsave(
     filename = paste0(dir_graph, date, "_QC_Boxplot_Counts_", model_name, ".pdf"),
-    plot = p, width = 12, height = 8
+    plot = p,
+    width = 12,
+    height = 8
   )
 }
 
@@ -107,14 +114,8 @@ for (model_name in names(dds_models)) {
 message("Generating QC PCA plots...")
 for (model_name in names(vsd_models)) {
   pca_plot <- plotPCA(vsd_models[[model_name]], intgroup = c("Driver", "Host", "Type")) +
-    labs(title = paste("PCA on VST (Model:", model_name, ")")) +
-    geom_point(size = 4) +
-    theme_bw()
-  
-  ggsave(
-    filename = paste0(dir_graph, date, "_QC_PCA_", model_name, ".pdf"),
-    plot = pca_plot, width = 8, height = 6
-  )
+    labs(title = paste("PCA on VST (Model:", model_name, ")")) + theme_bw()
+  print(pca_plot)
 }
 
 # --- Sample-to-Sample Distance Heatmaps ---
@@ -123,7 +124,6 @@ for (model_name in names(vsd_models)) {
   vsd <- vsd_models[[model_name]]
   sample_dists <- dist(t(assay(vsd)))
   sample_dist_matrix <- as.matrix(sample_dists)
-  colors <- colorRampPalette(rev(brewer.pal(9, "Blues")))(255)
   
   pheatmap(
     sample_dist_matrix,
