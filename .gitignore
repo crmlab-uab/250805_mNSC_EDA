@@ -54,5 +54,5 @@ rsconnect/
 .RData
 workspace.RData
 
-/sf/*.*
-/input/*.gz
+sf/
+input/*.gz
