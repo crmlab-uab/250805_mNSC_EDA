@@ -1,8 +1,8 @@
-## libraries
+# libraries
 library(RNAseqQC)
 library(pheatmap)
 
-## QC metrics
+# QC metrics
 tc <- list()
 lc <- list()
 gd <- list()
@@ -34,7 +34,7 @@ for (i in seq_along(ggp)) {
   }
 }
 
-## Mean SD plot
+# Mean SD plot
 msd <- list()
 for (i in seq_along(vsd)) {
   msd[[i]] <- ggplotify::as.ggplot(mean_sd_plot(vsd[[i]]))
@@ -46,7 +46,7 @@ for (i in seq_along(vsd)) {
 }
 names(msd) <- dds.names
 
-## dds QC
+# dds QC
 histo <- list()
 for (i in seq_along(dds)){
   histo[[i]] <- counts(dds[[i]], normalized = TRUE)

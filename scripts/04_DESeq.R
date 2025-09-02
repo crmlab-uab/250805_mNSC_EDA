@@ -1,17 +1,20 @@
-## libraries
+# libraries
 library(DESeq2)
 library(BiocParallel)
 
-## DESeq2
+# DESeq2
 system.time(des_pcg <- DESeq(dds$pcg, parallel = TRUE, BPPARAM = MulticoreParam(nc)))
 
-des_pcg_bl6 <- des_pcg
+# DES subsets
+des_pgc_subset_1 <- subset(des_pcg, rownames(des_pcg) %in% rownames(subset_1))
+des_pgc_subset_2 <- subset(des_pcg, rownames(des_pcg) %in% rownames(subset_2))
 
-## results
-system.time(
-  res <-
+# results
+res_subset_1 <- list()
+system.time(for (i in unique(subset_1$Driver)) {
+  res_subset_1[[i]] <-
     results(
-      des_pcg,
+      des_pgc_subset_1,
       contrast = c("Host", "BL6", "NSG"),
       alpha = qval,
       lfcThreshold = lfc,
@@ -19,5 +22,5 @@ system.time(
       BPPARAM = MulticoreParam(nc),
       pAdjustMethod = "fdr"
     )
-)
+})
 summary(res)

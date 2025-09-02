@@ -10,13 +10,16 @@ output:
     toc_float: yes
 editor_options:
   chunk_output_type: inline
+  markdown: 
+    wrap: sentence
 ---
 
-Files copied into the input folder on July 30, 2025:
+Files copied into the input folder on July 30, 2025
+Original file locations
 
 - **Sample sheet from nextflow round 2**  
   `/data/project/MillerLab/projects/mNSC/250730_mNSC_nf-core`
-- **Salmon gene counts (Original file locations)**  
+- **Salmon gene counts**  
   `/data/project/MillerLab/projects/mNSC/250730_mNSC_nf-core/sf`
 - **Genome**  
   `/data/project/MillerLab/genomes/GRCm39_vM37`
@@ -65,6 +68,26 @@ summarized_samples <- samples %>%
 ## Display the summarized data as an interactive table
 reactable(
   summarized_samples,
+  searchable = TRUE,
+  filterable = TRUE,
+  resizable = TRUE
+)
+```
+
+## sample subsets
+```{r}
+# ns1_by_host_and_driver
+subset_1 <- subset(samples, samples$Type=="NS1")
+reactable(
+  subset_1,
+  searchable = TRUE,
+  filterable = TRUE,
+  resizable = TRUE
+)
+# bl6_by_type_and_driver
+subset_2 <- subset(samples, samples$Host=="BL6")
+reactable(
+  subset_2,
   searchable = TRUE,
   filterable = TRUE,
   resizable = TRUE
@@ -127,6 +150,11 @@ if (length(valid_vars) != length(var_list)) {
 }
 ```
 
+## GOI
+```{r}
+project_genes <- c("Egfr", "Pdgfra", "Pten", "Cdkn2a")
+```
+
 ## graph annotations and colors
 ```{r}
 anno <- as.data.frame(samples[, valid_vars])
@@ -168,65 +196,54 @@ if (!all(c(var1, var2, var3, var5) %in% colnames(samples))) {
   stop("One or more variables are not valid column names in samples.")
 }
 des_design <- as.formula(paste("~", var5, "+", var3, "+", var1, "+", var2))
-
-project_genes <- c("Egfr", "Pdgfra", "Pten", "Cdkn2a")
 ```
 
-# Source scripts
+# Source scripts to global env
+## inputs
 ```{r}
-#| include: false
-# This chunk reads all the code from the child R scripts
-# The include=FALSE option prevents the chunk from being displayed,
-# but the read_chunk() calls will make the chunks available
-# for later use.
-knitr::read_chunk('./scripts/01_inputs.R')
-knitr::read_chunk('./scripts/02_data_prep.R')
-knitr::read_chunk('./scripts/03_QC.R')
-knitr::read_chunk('./scripts/04_DESeq.R')
-```
-
-## Inputs
-```{r}
-#| eval: true
 #| echo: true
-#| include: true
-#| local: false
 #| message: false
-file <- './scripts/01_inputs.R'
-source(file)
+#| local: false
+#| results: 'markup'
+source("./scripts/01_inputs.R")
+knitr::read_chunk("./scripts/01_inputs.R")
 ```
 
-## Data prep
+## data prep
 ```{r}
-#| eval: true
 #| echo: true
-#| include: true
-#| local: false
 #| message: false
-file <- './scripts/02_data_prep.R'
-source(file)
+#| local: false
+#| results: 'markup'
+source("./scripts/02_data_prep.R")
 ```
 
 ## QC
 ```{r}
-#| eval: true
 #| echo: true
-#| include: true
-#| local: false
 #| message: false
-file <- './scripts/03_QC.R'
-source(file)
+#| local: false
+#| results: 'markup'
+source("./scripts/03_QC.R")
 ```
 
 ## DESeq2
 ```{r}
-#| eval: true
 #| echo: true
-#| include: true
-#| local: false
 #| message: false
-file <- './scripts/04_DESeq.R'
-source(file)
+#| local: false
+#| results: 'markup'
+source("./scripts/04_DESeq.R")
+```
+
+## Source scripts to HTML knit
+```{r}
+#| include: true
+# This chunk reads code from child R scripts
+# knitr::read_chunk("./scripts/01_inputs.R")
+# knitr::read_chunk("./scripts/02_data_prep.R")
+# knitr::read_chunk("./scripts/03_QC.R")
+# knitr::read_chunk("./scripts/04_DESeq.R")
 ```
 
 # Session

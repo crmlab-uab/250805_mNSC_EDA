@@ -1,31 +1,29 @@
-## libraries
+# @knitr libraries
 library(BiocParallel)
 library(colorRamps)
 library(RColorBrewer)
 library(biomaRt)
 
-## variables
-
-## deseq2 parameters
+# @knitr deseq2 variables
 pval <- 0.05
 qval <- 0.05
 lfc <- 1
 
-## low read counts filter cutoff
+# @knitr low read counts filter cutoff
 filt <- 20
 
-## date and cores
+# @knitr date and cores
 date <- format(Sys.Date(), format = "%Y%m%d")
 nc <- BiocParallel::multicoreWorkers()
 
-## colors
+# @knitr colors
 blp <- colorRampPalette(rev(brewer.pal(9, "Blues")))(255)
 ryb <- colorRampPalette(rev(brewer.pal(n = 7, name = "RdYlBu")))(100)
 
-## seed
+# @knitr seed
 set.seed(888)
 
-## genome
+# @knitr genome
 ## /data/project/MillerLab/genomes/GRCm39_vM37
 
 ## import tx2gene (contains 3 columns)
@@ -44,7 +42,7 @@ head(tx_gene_symbol)
 tx_gene <- tx_geneID_genename[-3] # remove gene_name column
 head(tx_gene)
 
-## ID_to_symbols
+# ID_to_symbols
 genes <- tx_gene_symbol$gene_name
 length(genes)
 mart <-
@@ -75,6 +73,7 @@ write.csv(genes_mouse,
             "_genes_mouse_vM37.csv"
           ))
 
+# @knitr mouse genes
 genes_mouse %>%
   group_by(gene_biotype) %>%
   summarize(n = n())
@@ -87,7 +86,7 @@ reactable(
   resizable = TRUE
 )
 
-## pcg
+# @knitr pcg
 pcg <-
   subset(genes_mouse, genes_mouse$gene_biotype == "protein_coding")
 dim(pcg)
@@ -116,8 +115,8 @@ write.csv(pcg_df, file = paste0(dir_output, "genes_mouse_vM37_pcg.csv"))
 
 pcg <- as.vector(pcg_df$mgi_symbol)
 
-## genesets
-## kinases
+# @knitr genesets
+# kinases
 file_kinases <- "./genesets/201006_composite_kinases.csv"
 if (file.exists(file_kinases)) {
   kinases <- read.csv(file_kinases, header = TRUE, fileEncoding = "UTF-8-BOM")

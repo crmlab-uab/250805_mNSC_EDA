@@ -1,8 +1,8 @@
-## libraries
+# libraries
 library(tximport)
 library(DESeq2)
 
-## count files
+# count files
 txi <- tximport(
   files_sf,
   type = "salmon",
@@ -14,31 +14,31 @@ names(txi)
 head(txi$counts)
 all(colnames(txi$counts) == rownames(samples))
 
-## DDS
+# DDS
 dds_all <- DESeqDataSetFromTximport(txi, samples, design = des_design)
 head(colData(dds_all))
 
-## Estimate size factors and dispersions
+# Estimate size factors and dispersions
 dds_all <- estimateSizeFactors(dds_all)
 dds_all <- estimateDispersions(dds_all)
 
-## low expression filter
+# low expression filter
 smallest_group_size <- 3
 idx <- rowSums(counts(dds_all) >= filt) >= smallest_group_size
 dds_filt <- dds_all[idx, ]
 nrow(dds_filt)
 head(colData(dds_filt))
 
-## Estimate factors
+# Estimate factors
 dds_filt <- estimateSizeFactors(dds_filt)
 
-## pcg filter
+# pcg filter
 dds_pcg <- dds_filt[row.names(dds_filt) %in% pcg]
 nrow(dds_pcg)
 head(colData(dds_pcg))
 dds_pcg <- estimateSizeFactors(dds_pcg)
 
-## dds list
+# dds list
 dds <- list(dds_all, dds_filt, dds_pcg)
 dds.names <- c("all", "filt", "pcg") # nolint: object_name_linter.
 names(dds) <- dds.names
@@ -56,7 +56,7 @@ for (i in seq_along(dds)) {
           ))
 }
 
-## Save raw and norm counts using a loop
+# Save raw and norm counts using a loop
 dds_types <- paste0("dds_", dds.names)
 counts <- list()
 cts_names <- c()
@@ -83,8 +83,8 @@ for (i in names(counts)) {
   )
 }
 
-## VST
-## transform data using variance stablizing transformation
+# VST
+# transform data using variance stablizing transformation
 vsd <- list()
 for (i in seq_along(dds)) {
   vsd[[i]] <- vst(dds[[i]],
