@@ -31,9 +31,14 @@ set.seed(888)
 ## Col 2 - Ensembl geneID [gene_id]
 ## Col 3 - gene_name
 
+tx2gene_file <- "./input/tx2gene.tsv"
+if (!file.exists(tx2gene_file)) {
+  stop("tx2gene mapping file not found at: ", tx2gene_file)
+}
+
 tx_geneID_genename <- read.delim2(
-    file = "/data/input/tx2gene.tsv",
-    header = TRUE, sep = "\t")
+  file = tx2gene_file,
+  header = TRUE, sep = "\t")
 colnames(tx_geneID_genename)
 
 tx_gene_symbol <- tx_geneID_genename[-2] # remove gene_id column
@@ -77,14 +82,6 @@ write.csv(genes_mouse,
 genes_mouse %>%
   group_by(gene_biotype) %>%
   summarize(n = n())
-
-# Display as an interactive table
-reactable(
-  genes_mouse,
-  searchable = TRUE,
-  filterable = TRUE,
-  resizable = TRUE
-)
 
 # @knitr pcg
 pcg <-

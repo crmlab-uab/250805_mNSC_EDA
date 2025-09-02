@@ -6,100 +6,55 @@ library(DESeq2)
 txi <- tximport(
   files_sf,
   type = "salmon",
-  txIn = TRUE,
-  txOut = FALSE,
   tx2gene = tx_gene_symbol
 )
 names(txi)
 head(txi$counts)
 all(colnames(txi$counts) == rownames(samples))
 
-# DDS
-dds_all <- DESeqDataSetFromTximport(txi, samples, design = des_design)
-head(colData(dds_all))
-
-# Estimate size factors and dispersions
-dds_all <- estimateSizeFactors(dds_all)
-dds_all <- estimateDispersions(dds_all)
-
-# low expression filter
-smallest_group_size <- 3
-idx <- rowSums(counts(dds_all) >= filt) >= smallest_group_size
-dds_filt <- dds_all[idx, ]
-nrow(dds_filt)
-head(colData(dds_filt))
-
-# Estimate factors
-dds_filt <- estimateSizeFactors(dds_filt)
-
-# pcg filter
-dds_pcg <- dds_filt[row.names(dds_filt) %in% pcg]
-nrow(dds_pcg)
-head(colData(dds_pcg))
-dds_pcg <- estimateSizeFactors(dds_pcg)
-
-# dds list
-dds <- list(dds_all, dds_filt, dds_pcg)
-dds.names <- c("all", "filt", "pcg") # nolint: object_name_linter.
-names(dds) <- dds.names
-
-for (i in seq_along(dds)) {
-  saveRDS(dds[[i]],
-          file = paste0(
-            dir_output,
-            format(Sys.Date(), "%y%m%d"),
-            "_",
-            "dds",
-            "_",
-            names(dds[i]),
-            ".rds"
-          ))
-}
-
-# Save raw and norm counts using a loop
-dds_types <- paste0("dds_", dds.names)
-counts <- list()
-cts_names <- c()
-for (dds_type in dds_types) {
-  for (normalized in c(FALSE, TRUE)) {
-    count_type <- ifelse(normalized, "norm", "raw")
-    count_data <- data.frame(counts(get(dds_type), normalized = normalized))
-    count_name <- paste0("counts_", gsub("dds_", "", dds_type), "_", count_type)
-    counts[[count_name]] <- count_data
-    cts_names <- c(cts_names, count_name)
-  }
-}
-names(counts) <- cts_names
-
-# Ensure output directory exists
-if (!dir.exists(dir_output)) {
-  dir.create(dir_output, recursive = TRUE)
-}
-for (i in names(counts)) {
-  write.csv(
-    counts[[i]],
-    file = paste0(dir_output, format(Sys.Date(), "%y%m%d"), "_", i, ".csv"),
-    row.names = TRUE
+# Initialize a master list to hold all dds objects for each model
+dds_models <- list()
+message("Creating DESeqDataSet objects for each model...")
+# Loop through each design formula provided by the parent RMD
+for (model_name in names(design_list)) {
+  message(paste("... processing model:", model_name))
+  design_formula <- design_list[[model_name]]
+  
+  # Create the initial full DESeqDataSet
+  dds_all <- DESeqDataSetFromTximport(txi, samples, design = design_formula)
+  
+  # Pre-filtering: Keep genes with at least 'filt' counts in the smallest group of samples
+  smallest_group_size <- 3
+  keep <- rowSums(counts(dds_all) >= filt) >= smallest_group_size
+  dds_filt <- dds_all[keep, ]
+  
+  # Filter for protein-coding genes
+  dds_pcg <- dds_filt[rownames(dds_filt) %in% pcg, ]
+  
+  # Create a named list of the dds objects for the current model
+  current_model_dds_list <- list(
+    all = dds_all,
+    filt = dds_filt,
+    pcg = dds_pcg
   )
+  
+  # Estimate size factors for each dataset within the current model
+  current_model_dds_list <- lapply(current_model_dds_list, estimateSizeFactors)
+  
+  # Add the processed list of dds objects to the master list
+  dds_models[[model_name]] <- current_model_dds_list
 }
 
-# VST
-# transform data using variance stablizing transformation
-vsd <- list()
-for (i in seq_along(dds)) {
-  vsd[[i]] <- vst(dds[[i]],
-                  blind = FALSE,
-                  nsub = 1000,
-                  fitType = "parametric")
+# --- Save Data Objects ---
+# Save the master list of dds objects
+saveRDS(dds_models, file = paste0(dir_output, date, "_dds_models_list.rds"))
+
+# Perform Variance Stabilizing Transformation (VST) for each model's filtered data
+vsd_models <- list()
+for (model_name in names(dds_models)) {
+  # VST is typically run on the filtered data for QC
+  vsd_models[[model_name]] <- vst(dds_models[[model_name]][['pcg']], blind = FALSE)
 }
-names(vsd) <- dds.names
-for (i in names(vsd)) {
-  saveRDS(vsd[[i]], file = paste0(
-    dir_output,
-    format(Sys.Date(), "%y%m%d"),
-    "_vsd",
-    "_",
-    i,
-    ".rds"
-  ))
-}
+saveRDS(vsd_models, file = paste0(dir_output, date, "_vsd_models_list.rds"))
+
+message("Data preparation complete. DDS and VSD objects saved for all models.")
